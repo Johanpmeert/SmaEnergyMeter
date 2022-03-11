@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="SmaEnergyMeter:jar">
+    <output-path>$PROJECT_DIR$/out/artifacts/SmaEnergyMeter_jar</output-path>
+    <root id="archive" name="SmaEnergyMeter.jar">
+      <element id="module-output" name="SmaEnergyMeter" />
+    </root>
+  </artifact>
+</component>
