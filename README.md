@@ -6,7 +6,7 @@ It uses no external dependencies.
 It will create a permanent multicast connection running in a background thread.
 The connection is hardened to be used also over Wifi connections. When the connection fails, it will auto reconnect after 30 sec. That being said using wifi is not recommended because in real life you'll have many reconnects (every few minutes).
 At any time you can invoke the getCurrentData method to get the latest received data.
-Also the getSerials will return an Long[] of all SMA serials it encountered.
+Also the getSerials will return a Long[] of all SMA serials it encountered.
 
 The smaResponseData class contains the following:
 - serial number (long)
