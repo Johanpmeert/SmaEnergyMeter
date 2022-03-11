@@ -22,16 +22,16 @@ Typical use:
         smaEnergyMeter.establishConnection();
         int counter = 0;
         while (counter < 10) {
-            SmaEnergyMeter.SmaResponseData[] array = smaEnergyMeter.getCurrentData();
-            for (SmaEnergyMeter.SmaResponseData data : array) {  // iterate over array to avoid ConcurrentModificationException
+            SmaEnergyMeter.SmaResponseData[] smaEnergyMeterCurrentData = smaEnergyMeter.getCurrentData();
+            for (SmaEnergyMeter.SmaResponseData data : smaEnergyMeterCurrentData) {  // iterate over array to avoid ConcurrentModificationException
                 System.out.println("Power from serial nr " + data.serial + " is " + data.power3f + " Watt");
             }
             Thread.sleep(1000);
             counter++;
         }
         System.out.print("\nEncountered serial(s) are: ");
-        Long[] array = smaEnergyMeter.getSerials();
-        for (Long data : array) {
+        Long[] serialsArray = smaEnergyMeter.getSerials();
+        for (Long data : serialsArray) {
             System.out.print(data + ", ");
         }
         System.out.print("\nClosing... ");
