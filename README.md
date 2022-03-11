@@ -8,7 +8,7 @@ The connection is hardened to be used also over Wifi connections. When the conne
 At any time you can invoke the getCurrentData method to get the latest received data.
 Also the getSerials will return a Long[] of all SMA serials it encountered.
 
-The smaResponseData class contains the following:
+The SmaResponseData class contains the following:
 - serial number (long)
 - power3f (BigDecimal): power in Watt for all 3 phases
 - powerL1 (BigDecimal): power in Watt for all phase 1
