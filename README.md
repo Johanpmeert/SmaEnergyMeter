@@ -23,7 +23,7 @@ Typical use:
         int counter = 0;
         while (counter < 10) {
             SmaEnergyMeter.SmaResponseData[] smaEnergyMeterCurrentData = smaEnergyMeter.getCurrentData();
-            for (SmaEnergyMeter.SmaResponseData data : smaEnergyMeterCurrentData) {  // iterate over array to avoid ConcurrentModificationException
+            for (SmaEnergyMeter.SmaResponseData data : smaEnergyMeterCurrentData) {
                 System.out.println("Power from serial nr " + data.serial + " is " + data.power3f + " Watt");
             }
             Thread.sleep(1000);
