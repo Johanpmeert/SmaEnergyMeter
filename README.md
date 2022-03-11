@@ -1,5 +1,5 @@
 # SmaEnergyMeter
-Java class to access data on a SMA energy metert or SMA home manager
+Java class to access data on a SMA energy meter or SMA home manager
 It uses no external dependencies.
 
 It will create a permanent multicast connection running in a background thread.
