@@ -18,7 +18,7 @@ The smaResponseData class contains the following:
 Typical use example:
 
 ```java
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         SmaEnergyMeter smaEnergyMeter = new SmaEnergyMeter();
         smaEnergyMeter.establishConnection();
         int counter = 0;
