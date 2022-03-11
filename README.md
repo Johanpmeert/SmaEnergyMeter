@@ -1,5 +1,6 @@
 # SmaEnergyMeter
-Java class to access data on a SMA energy meter or SMA home manager
+Java class to access data on a SMA energy meter or SMA home manager.
+
 It uses no external dependencies.
 
 It will create a permanent multicast connection running in a background thread.
@@ -14,7 +15,7 @@ The smaResponseData class contains the following:
 - powerL2 (BigDecimal): power in Watt for all phase 2
 - powerL3 (BigDecimal): power in Watt for all phase 3
 
-Typical use:
+Typical use example:
 
 ```java
     public static void main(String[] args) throws InterruptedException {
