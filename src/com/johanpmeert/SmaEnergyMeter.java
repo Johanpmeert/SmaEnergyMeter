@@ -6,15 +6,23 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.Enumeration;
+import java.util.logging.*;
 
 public class SmaEnergyMeter {
 
     private ArrayList<SmaResponseData> allResponseData = new ArrayList();
     private ArrayList<Long> serials = new ArrayList();
     private volatile boolean closeConnectionCalled = false;
+    private boolean logging = true;
+    private Logger logger = Logger.getLogger("LogSma");
 
     public SmaEnergyMeter() {
+    }
+
+    public SmaEnergyMeter(boolean logging) {
+        this.logging = logging;
     }
 
     public SmaResponseData[] getCurrentData() {
@@ -34,12 +42,21 @@ public class SmaEnergyMeter {
         closeConnectionCalled = true;
     }
 
-    public class SmaResponseData {
+    public static class SmaResponseData {
         long serial = 0;
         BigDecimal power3f = BigDecimal.ZERO;
+        BigDecimal rpower3f = BigDecimal.ZERO;
+        BigDecimal apower3f = BigDecimal.ZERO;
         BigDecimal powerL1 = BigDecimal.ZERO;
+        BigDecimal currentL1 = BigDecimal.ZERO;
+        BigDecimal voltageL1 = BigDecimal.ZERO;
         BigDecimal powerL2 = BigDecimal.ZERO;
+        BigDecimal currentL2 = BigDecimal.ZERO;
+        BigDecimal voltageL2 = BigDecimal.ZERO;
         BigDecimal powerL3 = BigDecimal.ZERO;
+        BigDecimal currentL3 = BigDecimal.ZERO;
+        BigDecimal voltageL3 = BigDecimal.ZERO;
+        String ipAddress = "";
     }
 
     private class SmaThread implements Runnable {
@@ -52,9 +69,32 @@ public class SmaEnergyMeter {
 
         @Override
         public void run() {
+            if (logging) {
+                FileHandler fh = null;
+                try {
+                    fh = new FileHandler("sma.log");
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                logger.addHandler(fh);
+                // Override the standard formatter to something on 1 line
+                Formatter formatter = new Formatter() {
+                    @Override
+                    public String format(LogRecord arg0) {
+                        return new Date() + ", " + arg0.getLevel() + ": " + arg0.getMessage() + System.getProperty("line.separator");
+                    }
+                };
+                fh.setFormatter(formatter);
+                // also set the console logger to the new formatter
+                Logger globalLogger = Logger.getLogger("");
+                Handler[] handlers = globalLogger.getHandlers();
+                for (Handler handler : handlers) {
+                    handler.setFormatter(formatter);
+                }
+            }
             final String SMA_MULTICAST_IP = "239.12.255.254";
             final int SMA_MULTICAST_PORT = 9522;
-            final long WATCHDOG_INTERVAL = (long) 30e9;  // 30 seconds
+            final long WATCHDOG_INTERVAL = 30000000000L; // 30 seconds
             String myHostIpAddress = getIpAddress();
             while (!closeConnectionCalled) {
                 try {
@@ -63,6 +103,8 @@ public class SmaEnergyMeter {
                     NetworkInterface networkInterface = NetworkInterface.getByName(myHostIpAddress);
                     MulticastSocket multicastSocket = new MulticastSocket(SMA_MULTICAST_PORT);
                     multicastSocket.joinGroup(inetSocketAddress, networkInterface);
+                    if (logging)
+                        logger.info("MultiCast socket opened on " + SMA_MULTICAST_IP + ":" + SMA_MULTICAST_PORT);
                     final byte[] txbuf = hexStringToByteArray("534d4100000402a0ffffffff0000002000000000");  // discovery string to be sent to network, all SMA devices will answer
                     DatagramPacket datagramPacket = new DatagramPacket(txbuf, txbuf.length, inetAddress, SMA_MULTICAST_PORT);
                     multicastSocket.send(datagramPacket);
@@ -76,12 +118,19 @@ public class SmaEnergyMeter {
                         if (smaResponseData != null) {
                             if (!serials.contains(smaResponseData.serial)) {  // serial first reception
                                 serials.add(smaResponseData.serial); // add serial to list of serials
+                                logger.info("Found new serial " + smaResponseData.serial);
                             } else {
                                 watchDog = System.nanoTime(); // reset the watchdog
                                 allResponseData.removeIf(x -> x.serial == smaResponseData.serial); // delete the old data with this serial nr
                             }
+                            smaResponseData.ipAddress = String.valueOf(datagramPacket.getAddress());
                             allResponseData.add(smaResponseData); // add data to list
                         }
+                    }
+                    if (closeConnectionCalled) {
+                        logger.info("Close connection called");
+                    } else {
+                        logger.warning("Watchdog timer exceeded, auto restarting connection");
                     }
                     multicastSocket.close();
                 } catch (IOException e) {
@@ -109,36 +158,60 @@ public class SmaEnergyMeter {
         // to make searching the marker position easier to program, we convert the byte[] to a hexString and look for the markers in this String
         // the extraction is done from the byte[] with the search result from above (divided by 2)
         // for correctness, the result is stored in a BigDecimal
+        // voltage is encoded in 0.001V, we output in Volt
+        // amps is encoded in 0.001A, we output in amps
         int power3fp = getValueFromMarker(hexData, internalData.power3fpos);
         int power3fn = getValueFromMarker(hexData, internalData.power3fneg);
         if (power3fp != 0) {
-            smaData.power3f = BigDecimal.valueOf(power3fp).divide(BigDecimal.TEN);
+            smaData.power3f = BigDecimal.valueOf(power3fp).movePointLeft(1);
         } else {
-            smaData.power3f = BigDecimal.valueOf(-power3fn).divide(BigDecimal.TEN);
+            smaData.power3f = BigDecimal.valueOf(-power3fn).movePointLeft(1);
+        }
+        int powerR3fp = getValueFromMarker(hexData, internalData.rpower3fpos);
+        int powerR3fn = getValueFromMarker(hexData, internalData.rpower3fneg);
+        if (powerR3fp != 0) {
+            smaData.rpower3f = BigDecimal.valueOf(powerR3fp).movePointLeft(1);
+        } else {
+            smaData.rpower3f = BigDecimal.valueOf(-powerR3fn).movePointLeft(1);
+        }
+        int powerA3fp = getValueFromMarker(hexData, internalData.apower3fpos);
+        int powerA3fn = getValueFromMarker(hexData, internalData.apower3fneg);
+        if (powerA3fp != 0) {
+            smaData.apower3f = BigDecimal.valueOf(powerA3fp).movePointLeft(1);
+        } else {
+            smaData.apower3f = BigDecimal.valueOf(-powerA3fn).movePointLeft(1);
         }
         int powerL1p = getValueFromMarker(hexData, internalData.powerL1pos);
         int powerL1n = getValueFromMarker(hexData, internalData.powerL1neg);
         if (powerL1p != 0) {
-            smaData.powerL1 = BigDecimal.valueOf(powerL1p).divide(BigDecimal.TEN);
+            smaData.powerL1 = BigDecimal.valueOf(powerL1p).movePointLeft(1);
+            smaData.currentL1 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.currentL1)).movePointLeft(3);
         } else {
-            smaData.powerL1 = BigDecimal.valueOf(-powerL1n).divide(BigDecimal.TEN);
+            smaData.powerL1 = BigDecimal.valueOf(-powerL1n).movePointLeft(1);
+            smaData.currentL1 = BigDecimal.valueOf(-getValueFromMarker(hexData, internalData.currentL1)).movePointLeft(3);
         }
         int powerL2p = getValueFromMarker(hexData, internalData.powerL2pos);
         int powerL2n = getValueFromMarker(hexData, internalData.powerL2neg);
         if (powerL2p != 0) {
-            smaData.powerL2 = BigDecimal.valueOf(powerL2p).divide(BigDecimal.TEN);
+            smaData.powerL2 = BigDecimal.valueOf(powerL2p).movePointLeft(1);
+            smaData.currentL2 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.currentL2)).movePointLeft(3);
         } else {
-            smaData.powerL2 = BigDecimal.valueOf(-powerL2n).divide(BigDecimal.TEN);
+            smaData.powerL2 = BigDecimal.valueOf(-powerL2n).movePointLeft(1);
+            smaData.currentL2 = BigDecimal.valueOf(-getValueFromMarker(hexData, internalData.currentL2)).movePointLeft(3);
         }
         int powerL3p = getValueFromMarker(hexData, internalData.powerL3pos);
         int powerL3n = getValueFromMarker(hexData, internalData.powerL3neg);
         if (powerL3p != 0) {
-            smaData.powerL3 = BigDecimal.valueOf(powerL3p).divide(BigDecimal.TEN);
+            smaData.powerL3 = BigDecimal.valueOf(powerL3p).movePointLeft(1);
+            smaData.currentL3 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.currentL3)).movePointLeft(3);
         } else {
-            smaData.powerL3 = BigDecimal.valueOf(-powerL3n).divide(BigDecimal.TEN);
+            smaData.powerL3 = BigDecimal.valueOf(-powerL3n).movePointLeft(1);
+            smaData.currentL3 = BigDecimal.valueOf(-getValueFromMarker(hexData, internalData.currentL3)).movePointLeft(3);
         }
+        smaData.voltageL1 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.voltageL1)).movePointLeft(3);
+        smaData.voltageL2 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.voltageL2)).movePointLeft(3);
+        smaData.voltageL3 = BigDecimal.valueOf(getValueFromMarker(hexData, internalData.voltageL3)).movePointLeft(3);
         return smaData;
-
     }
 
     private int getValueFromMarker(byte[] hexData, internalData marker) {
@@ -150,15 +223,38 @@ public class SmaEnergyMeter {
     }
 
     private enum internalData {
-        // These are the 4 byte markers in hex
+        // These are the 4 byte markers in hex:
+        //
+        // total power +
+        // total power -
+        // reactive power +
+        // reactive power -
+        // apparent power +
+        // apparent power -
+        // L1 total power +
+        // L1 total power -
+        // L1 current
+        // L1 voltage
+        // ...
+        //
         power3fpos("00010400", 4, 4),
         power3fneg("00020400", 4, 4),
+        rpower3fpos("00030400", 4, 4),
+        rpower3fneg("00040400", 4, 4),
+        apower3fpos("00090400", 4, 4),
+        apower3fneg("000A0400", 4, 4),
         powerL1pos("00150400", 4, 4),
         powerL1neg("00160400", 4, 4),
+        currentL1("001F0400", 4, 4),
+        voltageL1("00200400", 4, 4),
         powerL2pos("00290400", 4, 4),
         powerL2neg("002A0400", 4, 4),
+        currentL2("00330400", 4, 4),
+        voltageL2("00340400", 4, 4),
         powerL3pos("003D0400", 4, 4),
-        powerL3neg("003E0400", 4, 4);
+        powerL3neg("003E0400", 4, 4),
+        currentL3("00470400", 4, 4),
+        voltageL3("00480400", 4, 4);
 
         final String code;
         final int offset;
